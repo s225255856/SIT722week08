@@ -1,4 +1,4 @@
-name: Unified CI/CD Pipeline
+name: Unified CI/CD Pipeline test
 
 on:
   push:
