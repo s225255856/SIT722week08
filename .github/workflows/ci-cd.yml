@@ -117,7 +117,7 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Login to ACR
-        run: az acr login --name ${{ secrets.AZURE_ACR_NAME }}
+        run: az acr login --name ${{ env.ACR_LOGIN_SERVER }}
 
       - name: Build and Push Docker Image
         run: |
