@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Cache dependencies
+      - name: Cache dependencies # caching for optimization
         uses: actions/cache@v3
         with:
           path: |
@@ -41,7 +41,7 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.service }}-${{ hashFiles('**/package-lock.json', '**/requirements.txt') }}
 
       - name: Install dependencies
-        run: |
+        run: | # if statement to select frontend service for this step
           if [ "${{ matrix.service }}" == "frontend" ]; then
             cd frontend && npm install
           else
@@ -50,8 +50,8 @@ jobs:
             pip install pytest flake8
           fi
 
-      - name: Run lint and tests
-        run: |
+      - name: Run lint and tests # linting and testing for quality assurance
+        run: | # if statement to select frontend service for this step
           if [ "${{ matrix.service }}" == "frontend" ]; then
             echo "Skipping frontend tests"
           else
