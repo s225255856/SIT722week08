@@ -78,6 +78,12 @@ jobs:
             pip install pytest flake8
           fi
 
+      - name: Create products database
+        if: ${{ matrix.service == 'product_service' }}
+        run: |
+          sudo apt-get install -y postgresql-client
+          PGPASSWORD=postgres psql -h localhost -U postgres -p 5432 -c "CREATE DATABASE products;"
+
       - name: Run lint and tests # linting and testing for quality assurance
         run: |
           if [ "${{ matrix.service }}" == "frontend" ]; then
