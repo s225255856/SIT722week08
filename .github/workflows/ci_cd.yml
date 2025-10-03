@@ -1,4 +1,4 @@
-name: Unified CI/CD Pipeline 
+name: Unified CI/CD Pipeline
 
 on:
   push:
@@ -77,16 +77,9 @@ jobs:
       - name: Login to ACR
         run: az acr login --name ${{ env.ACR_LOGIN_SERVER }}
 
-      - name: Build and Push Frontend Image
-        if: ${{ matrix.service == 'frontend' }}
+      - name: Build and Push Docker Image
         run: |
-          docker build -t ${{ env.ACR_LOGIN_SERVER }}/frontend:latest ./frontend/
-          docker push ${{ env.ACR_LOGIN_SERVER }}/frontend:latest
-
-      - name: Build and Push Backend Image
-        if: ${{ matrix.service != 'frontend' }}
-        run: |
-          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service }}:latest ./backend/${{ matrix.service }}/
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service }}:latest ./${{ matrix.service == 'frontend' && 'frontend' || 'backend/' + matrix.service }}
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service }}:latest
 
       - name: Logout from Azure
