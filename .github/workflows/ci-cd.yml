@@ -2,9 +2,9 @@ name: Unified CI/CD Pipeline
 
 on:
   push:
-    branches: [main, development]
+    branches: [main, development,  9.2C] # added other branches
   pull_request:
-    branches: [main, development]
+    branches: [main, development,  9.2C] # added pull request trigger
   workflow_dispatch:
 
 env:
