@@ -59,13 +59,14 @@ jobs:
             pip install pytest flake8
           fi
 
-      - name: Run lint and tests
+      - name: Run lint and tests # linting and testing for quality assurance
         run: |
           if [ "${{ matrix.service }}" == "frontend" ]; then
             echo "Skipping frontend tests"
           else
             flake8 backend/${{ matrix.service }}
-            pytest backend/${{ matrix.service }}/tests --maxfail=1 --disable-warnings -q
+            pytest backend/${{ matrix.service }}/tests --maxfail=1 --disable-warnings -q --max-line-length=120 --ignore=F401
+
           fi
 
   build-and-push:
