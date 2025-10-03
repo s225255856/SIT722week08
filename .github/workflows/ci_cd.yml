@@ -1,0 +1,123 @@
+name: Unified CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, development]  # added development branch
+  pull_request:
+    branches: [main, development]  # added new trigger for pull request
+  workflow_dispatch: 
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+  IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [frontend, product_service, order_service] # included all services 
+
+    steps:  # all the steps needed for all service
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js and Python
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/pip
+          key: ${{ runner.os }}-${{ matrix.service }}-${{ hashFiles('**/package-lock.json', '**/requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ matrix.service }}" == "frontend" ]; then
+            cd frontend && npm install
+          else
+            pip install --upgrade pip
+            pip install -r backend/${{ matrix.service }}/requirements.txt
+            pip install pytest flake8
+          fi
+
+      - name: Run lint and tests
+        run: |
+          if [ "${{ matrix.service }}" == "frontend" ]; then
+            echo "Skipping frontend tests"
+          else
+            flake8 backend/${{ matrix.service }}
+            pytest backend/${{ matrix.service }}/tests --maxfail=1 --disable-warnings -q
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    strategy:
+      matrix:
+        service: [frontend, product_service, order_service]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to ACR
+        run: az acr login --name ${{ env.ACR_LOGIN_SERVER }}
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service }}:latest ./${{ matrix.service == 'frontend' && 'frontend' || 'backend/' + matrix.service }}
+          docker push ${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service }}:latest
+
+      - name: Logout from Azure
+        run: az logout
+        if: always()
+
+  deploy-to-aks:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: Production
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        run: |
+          az aks get-credentials --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }} --overwrite-existing
+          az aks update --name ${{ secrets.AKS_CLUSTER_NAME }} --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --attach-acr ${{ env.ACR_LOGIN_SERVER }}
+
+      - name: Deploy Backend
+        run: |
+          kubectl apply -f k8s/secrets.yaml
+          kubectl apply -f k8s/product-db.yaml
+          kubectl apply -f k8s/order-db.yaml
+          kubectl apply -f k8s/product-service.yaml
+          kubectl apply -f k8s/order-service.yaml
+
+      - name: Deploy Frontend
+        run: |
+          # Optional: inject IPs dynamically if needed
+          kubectl apply -f k8s/frontend.yaml
+
+      - name: Logout from Azure
+        run: az logout
